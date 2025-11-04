@@ -21,27 +21,48 @@ public final class ChainValidationResult {
     private final boolean signed;
     private final Map<String, Object> parsedPayload;
     private final JwtContext jwtContext;
+    private final boolean netEaseChain; // 新增字段：标识是否为网易链
 
     private IdentityClaims identityClaims;
 
     public ChainValidationResult(boolean signed, String rawPayload) throws JoseException {
-        this(signed, JsonUtil.parseJson(rawPayload));
+        this(signed, JsonUtil.parseJson(rawPayload), false);
     }
 
     public ChainValidationResult(boolean signed, Map<String, Object> parsedPayload) {
-        this.signed = signed;
-        this.parsedPayload = Objects.requireNonNull(parsedPayload);
-        this.jwtContext = null;
+        this(signed, parsedPayload, false);
     }
 
     public ChainValidationResult(boolean signed, JwtContext context) {
+        this(signed, context, false);
+    }
+
+    // 新增构造函数，支持网易链标识
+    public ChainValidationResult(boolean signed, String rawPayload, boolean netEaseChain) throws JoseException {
+        this(signed, JsonUtil.parseJson(rawPayload), netEaseChain);
+    }
+
+    public ChainValidationResult(boolean signed, Map<String, Object> parsedPayload, boolean netEaseChain) {
+        this.signed = signed;
+        this.parsedPayload = Objects.requireNonNull(parsedPayload);
+        this.jwtContext = null;
+        this.netEaseChain = netEaseChain;
+    }
+
+    public ChainValidationResult(boolean signed, JwtContext context, boolean netEaseChain) {
         this.signed = signed;
         this.jwtContext = Objects.requireNonNull(context);
         this.parsedPayload = null;
+        this.netEaseChain = netEaseChain;
     }
 
     public boolean signed() {
         return signed;
+    }
+
+    // 新增方法：获取是否为网易链
+    public boolean isNetEaseChain() {
+        return netEaseChain;
     }
 
     public Map<String, Object> rawIdentityClaims() {

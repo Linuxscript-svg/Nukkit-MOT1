@@ -51,11 +51,14 @@ public class EncryptionUtils {
     public static final ECPublicKey MOJANG_PUBLIC_KEY;
     @Deprecated
     public static final ECPublicKey OLD_MOJANG_PUBLIC_KEY;
+    public static final ECPublicKey NETEASE_PUBLIC_KEY;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String MOJANG_PUBLIC_KEY_BASE64 =
             "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAECRXueJeTDqNRRgJi/vlRufByu/2G0i2Ebt6YMar5QX/R0DIIyrJMcUpruK4QveTfJSTp3Shlq4Gk34cD/4GUWwkv0DVuzeuB+tXija7HBxii03NHDbPAD0AKnLr2wdAp";
     private static final String OLD_MOJANG_PUBLIC_KEY_BASE64 =
             "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE8ELkixyLcwlZryUQcu1TvPOmI2B7vX83ndnWRUaXm74wFfa5f/lwQNTfrLVHa2PmenpGI6JhIMUJaWZrjmMj90NoKNFSNBuKdm8rYiXsfaz3K36x/1U26HpG0ZxK/V1V";
+    private static final String NETEASE_PUBLIC_KEY_BASE64 =
+            "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEEsmU+IF/XeAF3yiqJ7Ko36btx6JtdB26wV9Eyw4AYR/nmesznkfXxwQ4B0NkSnGIZccbb2f3nFUYughKSoAcNHx+lQm8F9h9RwhrNgeN907z06LUA2AqWcwqasxyaU0E";
     private static final KeyPairGenerator KEY_PAIR_GEN;
 
     public static final String ALGORITHM_TYPE = AlgorithmIdentifiers.ECDSA_USING_P384_CURVE_AND_SHA384;
@@ -200,6 +203,7 @@ public class EncryptionUtils {
             KEY_PAIR_GEN.initialize(new ECGenParameterSpec("secp384r1"));
             MOJANG_PUBLIC_KEY = parseKey(MOJANG_PUBLIC_KEY_BASE64);
             OLD_MOJANG_PUBLIC_KEY = parseKey(OLD_MOJANG_PUBLIC_KEY_BASE64);
+            NETEASE_PUBLIC_KEY = parseKey(NETEASE_PUBLIC_KEY_BASE64);
         } catch (NoSuchAlgorithmException | InvalidAlgorithmParameterException | InvalidKeySpecException e) {
             throw new AssertionError("Unable to initialize required encryption", e);
         }
@@ -271,6 +275,7 @@ public class EncryptionUtils {
             case 3:
                 ECPublicKey currentKey = null;
                 Map<String, Object> parsedPayload = null;
+                boolean isNetEaseChain = false;
                 for (int i = 0; i < 3; i++) {
                     JsonWebSignature signature = new JsonWebSignature();
                     signature.setCompactSerialization(chain.get(i));
@@ -289,16 +294,24 @@ public class EncryptionUtils {
                         throw new IllegalStateException("Chain signature doesn't match content");
                     }
 
-                    // the second chain entry has to be signed by Mojang
-                    if (i == 1 && (!currentKey.equals(MOJANG_PUBLIC_KEY))) {
-                        throw new IllegalStateException("The chain isn't signed by Mojang!");
+                    // the second chain entry has to be signed by Mojang or NetEase
+                    if (i == 1) {
+                        if (currentKey.equals(MOJANG_PUBLIC_KEY)) {
+                            // Valid Mojang chain
+                            isNetEaseChain = false;
+                        } else if (currentKey.equals(NETEASE_PUBLIC_KEY)) {
+                            // Valid NetEase chain
+                            isNetEaseChain = true;
+                        } else {
+                            throw new IllegalStateException("The chain isn't signed by Mojang or NetEase!");
+                        }
                     }
 
                     parsedPayload = JsonUtil.parseJson(signature.getUnverifiedPayload());
                     String identityPublicKey = JsonUtils.childAsType(parsedPayload, "identityPublicKey", String.class);
                     currentKey = parseKey(identityPublicKey);
                 }
-                return new ChainValidationResult(true, parsedPayload);
+                return new ChainValidationResult(true, parsedPayload, isNetEaseChain);
             default:
                 throw new IllegalStateException("Unexpected login chain length");
         }
@@ -404,6 +417,15 @@ public class EncryptionUtils {
     @Deprecated
     public static ECPublicKey getOldMojangPublicKey() {
         return OLD_MOJANG_PUBLIC_KEY;
+    }
+
+    /**
+     * NetEase's public key used to verify the JWT during login when Mojang key fails.
+     *
+     * @return NetEase's public EC key
+     */
+    public static ECPublicKey getNetEasePublicKey() {
+        return NETEASE_PUBLIC_KEY;
     }
 
     public static Cipher createCipher(boolean gcm, boolean encrypt, SecretKey key) {
