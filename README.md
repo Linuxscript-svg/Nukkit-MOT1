@@ -38,7 +38,7 @@ note: if you need higher version features, please use [PowerNukkitX](https://git
 - __🐞 [Report a Bug](https://github.com/MemoriesOfTime/Nukkit-MOT/issues/new/choose)__
 
 ## Maven
-#### Repository:
+#### Repository:1
 ```xml
 <repositories>
     <repository>
